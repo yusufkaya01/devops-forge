@@ -26,12 +26,11 @@ yarn-error.log*
 # IDE
 .idea/
 .vscode/
-*.swp
-*.swo
 
 # Docker
-.docker/
-docker-compose.override.yml
+*.log
+*.tmp
+*.temp
 
 # Temporary files
 *.log

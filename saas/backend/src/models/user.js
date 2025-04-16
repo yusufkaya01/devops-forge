@@ -1,8 +1,10 @@
-const { DataTypes } = require('sequelize');
-const bcrypt = require('bcryptjs');
+const { Model, DataTypes } = require('sequelize');
+const bcrypt = require('bcrypt');
 
 module.exports = (sequelize) => {
-  const User = sequelize.define('User', {
+  class User extends Model {}
+
+  User.init({
     id: {
       type: DataTypes.INTEGER,
       primaryKey: true,
@@ -22,54 +24,57 @@ module.exports = (sequelize) => {
     },
     firstName: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
+      field: 'first_name'
     },
     lastName: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
+      field: 'last_name'
     },
     companyName: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
+      field: 'company_name'
     },
     role: {
       type: DataTypes.ENUM('admin', 'user'),
       defaultValue: 'user'
     }
   }, {
+    sequelize,
+    modelName: 'User',
     tableName: 'users',
     timestamps: true,
     hooks: {
       beforeCreate: async (user) => {
-        try {
-          if (user.password) {
-            user.password = await bcrypt.hash(user.password, 10);
-          }
-        } catch (error) {
-          console.error('Error hashing password:', error);
-          throw error;
+        if (user.password) {
+          console.log('Hashing password for new user:', user.email);
+          const salt = await bcrypt.genSalt(10);
+          user.password = await bcrypt.hash(user.password, salt);
         }
       },
       beforeUpdate: async (user) => {
-        try {
-          if (user.changed('password')) {
-            user.password = await bcrypt.hash(user.password, 10);
-          }
-        } catch (error) {
-          console.error('Error hashing password:', error);
-          throw error;
+        if (user.changed('password')) {
+          console.log('Hashing updated password for user:', user.email);
+          const salt = await bcrypt.genSalt(10);
+          user.password = await bcrypt.hash(user.password, salt);
         }
       }
     }
   });
 
+  // Instance method to validate password
   User.prototype.validatePassword = async function(password) {
-    try {
-      return bcrypt.compare(password, this.password);
-    } catch (error) {
-      console.error('Error validating password:', error);
-      throw error;
-    }
+    return bcrypt.compare(password, this.password);
+  };
+
+  User.prototype.updatePassword = async function(newPassword) {
+    console.log('Updating password for user:', this.id);
+    this.password = newPassword;
+    await this.save();
+    console.log('Password updated successfully');
+    return true;
   };
 
   return User;

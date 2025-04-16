@@ -1,65 +1,47 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-const app = express();
-
-// Enable CORS
-app.use(cors({
-  origin: 'http://localhost:3001',
-  credentials: true
-}));
-
-// Parse JSON bodies
-app.use(bodyParser.json());
-
-// Health check endpoint
-app.get('/', (req, res) => {
-  res.json({ status: 'ok', message: 'Server is running' });
-});
-
-// Login endpoint
-app.post('/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  console.log('Login attempt:', { email });
-  
-  // For testing, accept any email/password
-  if (email && password) {
-    res.json({
-      token: 'test-token-123',
-      user: {
-        email,
-        firstName: 'Test',
-        lastName: 'User'
-      }
-    });
-  } else {
-    res.status(400).json({ message: 'Email and password are required' });
-  }
-});
-
-// Signup endpoint
-app.post('/auth/signup', (req, res) => {
-  const { email, password, firstName, lastName, companyName } = req.body;
-  console.log('Signup attempt:', { email, firstName, lastName, companyName });
-  
-  // For testing, accept any valid data
-  if (email && password && firstName && lastName && companyName) {
-    res.json({
-      token: 'test-token-123',
-      user: {
-        email,
-        firstName,
-        lastName,
-        companyName
-      }
-    });
-  } else {
-    res.status(400).json({ message: 'All fields are required' });
-  }
-});
+const helmet = require('helmet');
+const morgan = require('morgan');
+const { sequelize } = require('./src/models');
+const app = require('./src/app');
 
 const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(helmet());
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true
+}));
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
+app.get('/', (req, res) => {
+  res.json({ message: 'Welcome to DevOps Forge API' });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', {
+    error: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method
+  });
+  res.status(500).json({ 
+    success: false,
+    message: 'Something went wrong!',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
+// Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 }); 

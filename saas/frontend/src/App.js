@@ -1,17 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import axios from 'axios';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
+import Profile from './components/account/Profile';
+import Settings from './components/account/Settings';
 
-const API_URL = 'http://localhost:3000';
+// Update API URL to match backend
+const API_URL = 'http://localhost:3000/api';
 
 // Configure axios defaults
 axios.defaults.baseURL = API_URL;
 axios.defaults.headers.common['Content-Type'] = 'application/json';
-axios.defaults.withCredentials = true;
+
+// Add request interceptor to include token in all requests
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // Add response interceptor for better error handling
 axios.interceptors.response.use(
@@ -24,6 +40,13 @@ axios.interceptors.response.use(
       headers: error.response?.headers,
       config: error.config
     });
+
+    // Handle token expiration
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/';
+    }
+
     return Promise.reject(error);
   }
 );
@@ -32,7 +55,7 @@ axios.interceptors.response.use(
 const checkServerHealth = async () => {
   try {
     console.log('Attempting to connect to backend server...');
-    const response = await axios.get('/');
+    const response = await axios.get('/api/health');
     console.log('Health check response:', response.data);
     return true;
   } catch (error) {
@@ -65,38 +88,6 @@ const LoginPage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [serverStatus, setServerStatus] = useState('checking');
-
-  useEffect(() => {
-    const verifyServer = async () => {
-      try {
-        console.log('Starting server verification...');
-        const isHealthy = await checkServerHealth();
-        console.log('Server health check result:', isHealthy);
-        
-        setServerStatus(isHealthy ? 'healthy' : 'unhealthy');
-        if (!isHealthy) {
-          setError(
-            'Backend server connection failed. Please ensure:\n' +
-            '1. The backend server is running (Run: npm start in backend directory)\n' +
-            '2. It is running on port 3000\n' +
-            '3. Check browser console (F12) for detailed error messages'
-          );
-        }
-      } catch (error) {
-        console.error('Server verification failed:', error);
-        setServerStatus('unhealthy');
-        setError(
-          'Server verification failed. Check console (F12) for details.\n' +
-          'Common issues:\n' +
-          '1. Backend server not running\n' +
-          '2. Port conflict\n' +
-          '3. CORS configuration'
-        );
-      }
-    };
-    verifyServer();
-  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -116,24 +107,27 @@ const LoginPage = () => {
         : {
             email: formData.email,
             password: formData.password,
+            confirmPassword: formData.password,
             firstName: formData.firstName,
             lastName: formData.lastName,
             companyName: formData.companyName
           };
 
       console.log('Sending request to:', `${API_URL}${endpoint}`);
-      console.log('Request payload:', payload);
+      console.log('Request payload:', { ...payload, password: '***', confirmPassword: '***' });
 
-      const response = await axios.post(endpoint, payload);
+      const response = await axios.post(`${API_URL}${endpoint}`, payload);
 
       console.log('Response received:', response.data);
 
-      if (response.data.token) {
+      if (response.data.success && response.data.token) {
         localStorage.setItem('token', response.data.token);
         setSuccess(isLogin ? 'Login successful!' : 'Account created successfully!');
         setTimeout(() => {
           window.location.href = '/dashboard';
         }, 1000);
+      } else {
+        setError(response.data.message || 'An unexpected error occurred');
       }
     } catch (err) {
       console.error('Full error object:', err);
@@ -141,10 +135,10 @@ const LoginPage = () => {
         const errorMessage = err.response.data?.message || 
                            err.response.data?.error || 
                            'An error occurred during the request';
-        setError(`Error (${err.response.status}): ${errorMessage}`);
+        setError(`Error: ${errorMessage}`);
       } else if (err.request) {
         console.error('No response received:', err.request);
-        setError('Unable to connect to the server. Please check if the backend is running on port 3000.');
+        setError('Unable to connect to the server. Please check if the backend is running.');
       } else {
         console.error('Request setup error:', err.message);
         setError(`Request error: ${err.message}`);
@@ -318,7 +312,19 @@ const LoginPage = () => {
         </form>
         <div style={{ textAlign: 'center', marginTop: '1rem' }}>
           <button
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError('');
+              setSuccess('');
+              setFormData({
+                email: '',
+                password: '',
+                confirmPassword: '',
+                firstName: '',
+                lastName: '',
+                companyName: ''
+              });
+            }}
             disabled={isLoading}
             style={{
               background: 'none',
@@ -339,28 +345,25 @@ const LoginPage = () => {
 
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem('token');
-  return token ? children : <Navigate to="/" />;
+  if (!token) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
 };
 
 function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
+      <BrowserRouter>
         <Routes>
-          <Route path="/" element={<LoginPage />} />
-          <Route
-            path="/dashboard"
-            element={
-              <PrivateRoute>
-                <Layout>
-                  <Dashboard />
-                </Layout>
-              </PrivateRoute>
-            }
-          />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/dashboard" element={<PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>} />
+          <Route path="/profile" element={<PrivateRoute><Layout><Profile /></Layout></PrivateRoute>} />
+          <Route path="/account/settings" element={<PrivateRoute><Layout><Settings /></Layout></PrivateRoute>} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
-      </Router>
+      </BrowserRouter>
     </ThemeProvider>
   );
 }

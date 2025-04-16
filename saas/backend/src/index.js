@@ -10,13 +10,21 @@ const app = express();
 
 // Middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true
+}));
 app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
 
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to DevOps Forge API' });
@@ -24,11 +32,19 @@ app.get('/', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
+  console.error('Global error handler:', {
+    error: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method
+  });
+  res.status(500).json({ 
+    message: 'Something went wrong!',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Initialize database and start server
 const initializeServer = async () => {
@@ -38,7 +54,7 @@ const initializeServer = async () => {
     console.log('Database connection has been established successfully.');
 
     // Sync database models
-    await sequelize.sync({ force: true }); // Be careful with force: true in production!
+    await sequelize.sync({ alter: true });
     console.log('Database synchronized successfully.');
 
     // Start server

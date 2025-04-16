@@ -14,7 +14,8 @@ import {
   Typography,
   Menu,
   MenuItem,
-  Avatar
+  Avatar,
+  Divider
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -24,7 +25,8 @@ import {
   Security as SecurityIcon,
   Settings as SettingsIcon,
   AccountCircle as AccountCircleIcon,
-  Logout as LogoutIcon
+  Logout as LogoutIcon,
+  Person as PersonIcon
 } from '@mui/icons-material';
 
 const drawerWidth = 240;
@@ -49,6 +51,11 @@ const Layout = ({ children }) => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/');
+  };
+
+  const handleMenuItemClick = (path) => {
+    navigate(path);
+    handleClose();
   };
 
   const menuItems = [
@@ -128,8 +135,19 @@ const Layout = ({ children }) => {
               open={Boolean(anchorEl)}
               onClose={handleClose}
             >
-              <MenuItem onClick={handleClose}>Profile</MenuItem>
-              <MenuItem onClick={handleClose}>My account</MenuItem>
+              <MenuItem onClick={() => handleMenuItemClick('/profile')}>
+                <ListItemIcon>
+                  <PersonIcon fontSize="small" />
+                </ListItemIcon>
+                Profile
+              </MenuItem>
+              <MenuItem onClick={() => handleMenuItemClick('/account/settings')}>
+                <ListItemIcon>
+                  <SettingsIcon fontSize="small" />
+                </ListItemIcon>
+                Account Settings
+              </MenuItem>
+              <Divider />
               <MenuItem onClick={handleLogout}>
                 <ListItemIcon>
                   <LogoutIcon fontSize="small" />
